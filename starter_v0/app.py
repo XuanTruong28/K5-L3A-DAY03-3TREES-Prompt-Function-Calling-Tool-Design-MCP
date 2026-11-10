@@ -1,11 +1,11 @@
-import json
+import html
 from pathlib import Path
 import streamlit as st
 
+from chat import run_model_tool_loop, trim_history
 from env_loader import load_lab_env
 from providers import make_provider
-from tools import TOOL_FUNCTIONS, load_tool_declarations, to_openai_tools
-from agent import ResearchAgent
+from tools import load_tool_declarations, to_openai_tools
 
 # 1. Cấu hình trang & nạp môi trường
 ROOT = Path(__file__).parent
@@ -91,12 +91,10 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# 2. Khởi tạo Agent trong session_state
-if "agent" not in st.session_state:
-    tools_schema = to_openai_tools(load_tool_declarations(ROOT / "artifacts" / "tools.yaml"))
-    system_prompt = (ROOT / "artifacts" / "system_prompt.md").read_text(encoding="utf-8")
-    provider = make_provider("openai")  # Hoặc "openrouter" tùy theo key bạn dùng
-    st.session_state.agent = ResearchAgent(provider=provider, system_prompt=system_prompt, tools=tools_schema)
+# 2. Khởi tạo Provider & lịch sử trong session_state
+if "provider" not in st.session_state:
+    st.session_state.provider = make_provider("openai")  # Hoặc "openrouter" tùy theo key bạn dùng
+if "messages" not in st.session_state:
     st.session_state.messages = []
 
 # Tên & Icon hiển thị cho từng công cụ
@@ -117,31 +115,41 @@ TOOL_INFO = {
     "cross_check": {"icon": "⚖️", "name": "Đối Chiếu Nguồn Tin"},
 }
 
-def render_tool_as_cards(tool_name: str, args: dict, result: any):
-    """Vẽ toàn bộ kết quả của tool thành Card trực quan, thân thiện (100% không dùng JSON)."""
+def _esc(value: object) -> str:
+    return html.escape("" if value is None else str(value), quote=True)
+
+
+def render_tool_as_cards(tool_name: str, args: dict, result: object):
+    """Vẽ kết quả của tool thành Card trực quan, thân thiện (không dùng JSON thô)."""
     info = TOOL_INFO.get(tool_name, {"icon": "⚙️", "name": tool_name.title()})
-    
+
     st.markdown(f"""
     <div class="tool-card">
         <div class="tool-header">
             <span>{info['icon']}</span>
-            <span>{info['name']}</span>
+            <span>{_esc(info['name'])}</span>
         </div>
     """, unsafe_allow_html=True)
 
+    if isinstance(result, dict) and result.get("error"):
+        st.error(f"{result.get('error')}: {result.get('message', 'Lỗi không xác định')}")
+        st.markdown("</div>", unsafe_allow_html=True)
+        return
+
     # 1. Tool Thống kê: calculate_stats
     if tool_name == "calculate_stats":
-        if isinstance(result, dict) and "result" in result:
+        if isinstance(result, dict) and ("result" in result or "average" in result):
             col1, col2, col3 = st.columns([1, 1, 2])
+            display_val = result.get("growth_percentage") or result.get("result") or result.get("average")
             with col1:
                 st.metric(
-                    label=f"Phép tính: {result.get('operation', 'summary').upper()}",
-                    value=f"{result.get('result')}"
+                    label=f"Phép tính: {str(result.get('operation', 'summary')).upper()}",
+                    value=f"{display_val}",
                 )
             with col2:
                 st.metric(
                     label="Số lượng mẫu tính",
-                    value=f"{len(args.get('numbers', []))} phần tử"
+                    value=f"{len(args.get('numbers', []))} phần tử",
                 )
             with col3:
                 st.markdown(f"**Dãy số đầu vào:** `{args.get('numbers', [])}`")
@@ -151,13 +159,13 @@ def render_tool_as_cards(tool_name: str, args: dict, result: any):
     # 2. Tool Tìm kiếm Web: lookup
     elif tool_name == "lookup":
         items = result.get("items", []) if isinstance(result, dict) else []
-        st.markdown(f"**Từ khóa tìm kiếm:** *'{args.get('query')}'* ({len(items)} kết quả)")
+        st.markdown(f"**Từ khóa tìm kiếm:** *'{_esc(args.get('query'))}'* ({len(items)} kết quả)")
         if items:
-            for item in items[:4]:  # Hiển thị tối đa 4 card bài viết
-                title = item.get("title", "Không có tiêu đề")
-                url = item.get("url", "#")
-                source = item.get("source", "Nguồn tin tức")
-                summary = item.get("summary", "Không có bản tóm tắt.")
+            for item in items:
+                title = _esc(item.get("title") or "Không có tiêu đề")
+                url = _esc(item.get("url") or "#")
+                source = _esc(item.get("source") or "Nguồn tin tức")
+                summary = _esc(item.get("summary") or "Không có bản tóm tắt.")
                 st.markdown(f"""
                 <div class="item-card">
                     <a class="item-title" href="{url}" target="_blank">🔗 {title}</a>
@@ -170,33 +178,40 @@ def render_tool_as_cards(tool_name: str, args: dict, result: any):
 
     # 3. Tool Đọc URL: fetch
     elif tool_name == "fetch":
-        title = result.get("title") or "Trang nội dung" if isinstance(result, dict) else "Trang Web"
-        summary = result.get("summary") or result.get("text") or str(result)
+        items = result.get("items", []) if isinstance(result, dict) else []
+        first = items[0] if items else (result if isinstance(result, dict) else {})
+        title = _esc(first.get("title") or "Trang nội dung")
+        url = _esc(first.get("url") or args.get("url") or "#")
+        summary = _esc((first.get("summary") or first.get("text") or str(result))[:500])
         st.markdown(f"""
         <div class="item-card">
             <div class="item-title">📄 {title}</div>
-            <div class="item-source">Địa chỉ: <a href="{args.get('url')}" target="_blank">{args.get('url')}</a></div>
-            <div class="item-summary">{summary[:400]}...</div>
+            <div class="item-source">Địa chỉ: <a href="{url}" target="_blank">{url}</a></div>
+            <div class="item-summary">{summary}...</div>
         </div>
         """, unsafe_allow_html=True)
 
     # 4. Tool Bài báo khoa học: papers & paper_text
     elif tool_name in ["papers", "paper_text"]:
-        papers_list = result.get("papers", []) if isinstance(result, dict) else []
-        if papers_list:
-            for p in papers_list[:3]:
+        items = result.get("items", []) if isinstance(result, dict) else []
+        if items:
+            for p in items[:3]:
+                authors = p.get("authors") or []
+                authors_text = ", ".join(authors[:3]) if isinstance(authors, list) else str(authors)
+                arxiv_id = p.get("arxiv_id") or p.get("id") or ""
+                url = _esc(p.get("url") or "#")
                 st.markdown(f"""
                 <div class="item-card">
-                    <div class="item-title">📚 {p.get('title', 'Paper')}</div>
-                    <div class="item-source">Tác giả: {p.get('authors', 'Đang cập nhật')} | ID: {p.get('id', '')}</div>
-                    <div class="item-summary">{p.get('summary', '')[:300]}...</div>
+                    <a class="item-title" href="{url}" target="_blank">📚 {_esc(p.get('title') or 'Paper')}</a>
+                    <div class="item-source">Tác giả: {_esc(authors_text or 'Đang cập nhật')} | ID: {_esc(arxiv_id)}</div>
+                    <div class="item-summary">{_esc((p.get('summary') or '')[:350])}...</div>
                 </div>
                 """, unsafe_allow_html=True)
         else:
             st.markdown(f"""
             <div class="item-card">
                 <div class="item-title">📑 Trích xuất nội dung arXiv</div>
-                <div class="item-summary">{str(result)[:350]}...</div>
+                <div class="item-summary">{_esc(str(result)[:350])}...</div>
             </div>
             """, unsafe_allow_html=True)
 
@@ -205,11 +220,13 @@ def render_tool_as_cards(tool_name: str, args: dict, result: any):
         results = result.get("results", []) if isinstance(result, dict) else []
         if results:
             for r in results:
+                facts = r.get("facts", "")
+                facts_html = "<br>• ".join(_esc(f) for f in facts) if isinstance(facts, list) else _esc(facts)
                 st.markdown(f"""
                 <div class="item-card">
-                    <div class="item-title">📜 {r.get('title', 'Điều khoản chính sách')}</div>
-                    <div class="item-source">Phân loại: {r.get('policy_area', 'Chung')}</div>
-                    <div class="item-summary">{"<br>• ".join(r.get('facts', []))}</div>
+                    <div class="item-title">📜 {_esc(r.get('title') or 'Điều khoản chính sách')}</div>
+                    <div class="item-source">Phân loại: {_esc(r.get('policy_area') or 'Chung')} | Mục: {_esc(r.get('section') or '')}</div>
+                    <div class="item-summary">{facts_html}</div>
                 </div>
                 """, unsafe_allow_html=True)
         else:
@@ -218,16 +235,30 @@ def render_tool_as_cards(tool_name: str, args: dict, result: any):
     # 6. Tool Mạng xã hội: timeline / social_search
     elif tool_name in ["timeline", "social_search"]:
         tweets = result.get("items", []) if isinstance(result, dict) else []
-        for tw in tweets[:3]:
-            st.markdown(f"""
-            <div class="item-card">
-                <div class="item-title">💬 @{tw.get('author', args.get('screenname', 'user'))}</div>
-                <div class="item-summary">{tw.get('text', '')}</div>
-                <div class="item-source"><a href="{tw.get('url', '#')}" target="_blank">Xem bài đăng gốc</a></div>
-            </div>
-            """, unsafe_allow_html=True)
+        if tweets:
+            for tw in tweets[:4]:
+                author = _esc(tw.get("source") or tw.get("author") or f"@{args.get('screenname', 'user')}")
+                body = _esc(tw.get("summary") or tw.get("text") or tw.get("title") or "")
+                url = _esc(tw.get("url") or "#")
+                st.markdown(f"""
+                <div class="item-card">
+                    <div class="item-title">💬 {author}</div>
+                    <div class="item-summary">{body}</div>
+                    <div class="item-source"><a href="{url}" target="_blank">Xem bài đăng gốc</a></div>
+                </div>
+                """, unsafe_allow_html=True)
+        else:
+            st.caption("Không tìm thấy bài đăng nào.")
 
-    # 7. Tool Xác nhận gửi: send
+    # 7. Tool Định dạng: format
+    elif tool_name == "format":
+        md = result.get("markdown", "") if isinstance(result, dict) else ""
+        if md:
+            st.markdown(md)
+        else:
+            st.caption("Không có nội dung định dạng.")
+
+    # 8. Tool Xác nhận gửi: send
     elif tool_name == "send":
         if args.get("confirmed"):
             st.markdown("""
@@ -242,11 +273,11 @@ def render_tool_as_cards(tool_name: str, args: dict, result: any):
             </div>
             """, unsafe_allow_html=True)
 
-    # 8. Tool Hỏi lại: clarify
+    # 9. Tool Hỏi lại: clarify
     elif tool_name == "clarify":
         st.markdown(f"""
         <div class="warning-card">
-            ❓ <b>Cần làm rõ thêm:</b> {args.get('question', '')}
+            ❓ <b>Cần làm rõ thêm:</b> {_esc(args.get('question', ''))}
         </div>
         """, unsafe_allow_html=True)
 
@@ -254,11 +285,23 @@ def render_tool_as_cards(tool_name: str, args: dict, result: any):
     else:
         st.markdown(f"""
         <div class="item-card">
-            <div class="item-summary">{str(result)[:300]}</div>
+            <div class="item-summary">{_esc(str(result)[:300])}</div>
         </div>
         """, unsafe_allow_html=True)
 
     st.markdown("</div>", unsafe_allow_html=True)
+
+
+def render_tool_executions(executed_tools: list[dict]) -> None:
+    if not executed_tools:
+        return
+    with st.expander(f"🛠️ Chi tiết công cụ đã gọi ({len(executed_tools)})", expanded=False):
+        for item in executed_tools:
+            render_tool_as_cards(
+                tool_name=item.get("tool", ""),
+                args=item.get("args", {}),
+                result=item.get("result"),
+            )
 
 
 # 3. Sidebar: Thông tin & Câu hỏi mẫu 1-click
@@ -304,18 +347,9 @@ st.caption("Agent tự động nhận diện ý định, phân tích dữ liệu
 # Hiển thị lịch sử tin nhắn
 for msg in st.session_state.messages:
     with st.chat_message(msg["role"]):
-        # Hiển thị các công cụ đã chạy thành các Card trực quan
-        if msg.get("tool_executions"):
-            for item in msg["tool_executions"]:
-                render_tool_as_cards(
-                    tool_name=item.get("tool", ""),
-                    args=item.get("args", {}),
-                    result=item.get("result")
-                )
-
-        # Hiển thị phản hồi văn bản
         if msg.get("content"):
             st.markdown(msg["content"])
+        render_tool_executions(msg.get("tool_executions") or [])
 
 # 5. Xử lý tin nhắn người dùng nhập hoặc bấm từ câu hỏi mẫu
 active_input = st.chat_input("Nhập yêu cầu nghiên cứu của bạn...")
@@ -329,37 +363,32 @@ if active_input:
     with st.chat_message("user"):
         st.markdown(active_input)
 
-    # 2. Xử lý và gọi Agent
+    # 2. Xử lý và gọi vòng lặp Agent (trả kết quả tool về model để tổng hợp câu trả lời)
     with st.chat_message("assistant"):
-        with st.spinner("🤖 Đang phân tích yêu cầu và kích hoạt công cụ phù hợp..."):
+        with st.spinner("🤖 Đang phân tích yêu cầu, chạy công cụ và tổng hợp câu trả lời..."):
+            tools_schema = to_openai_tools(load_tool_declarations(ROOT / "artifacts" / "tools.yaml"))
+            system_prompt = (ROOT / "artifacts" / "system_prompt.md").read_text(encoding="utf-8")
             history = [{"role": m["role"], "content": m["content"]} for m in st.session_state.messages]
+            messages = [{"role": "system", "content": system_prompt}, *trim_history(history, 5)]
             try:
-                run = st.session_state.agent.run(history)
-                
-                executed_tools = []
-                if run.tool_calls:
-                    for call, res in zip(run.tool_calls, run.tool_results):
-                        tool_name = call.name
-                        raw_res = res.get("result")
-                        
-                        # Render Card ngay lập tức
-                        render_tool_as_cards(tool_name, call.args, raw_res)
+                loop_result = run_model_tool_loop(
+                    provider=st.session_state.provider,
+                    messages=messages,
+                    tools=tools_schema,
+                    model=None,
+                    max_tool_rounds=4,
+                )
 
-                        executed_tools.append({
-                            "tool": tool_name,
-                            "args": call.args,
-                            "result": raw_res
-                        })
-
-                # Hiển thị câu phản hồi tổng kết của agent
-                response_text = run.text or "*(Đã hoàn tất trích xuất dữ liệu từ công cụ)*"
+                executed_tools = loop_result.get("tool_events", [])
+                response_text = loop_result.get("assistant_text") or "*(Không có phản hồi từ model)*"
                 st.markdown(response_text)
+                render_tool_executions(executed_tools)
 
                 # Lưu vào lịch sử phiên làm việc
                 st.session_state.messages.append({
                     "role": "assistant",
                     "content": response_text,
-                    "tool_executions": executed_tools
+                    "tool_executions": executed_tools,
                 })
 
             except Exception as e:
