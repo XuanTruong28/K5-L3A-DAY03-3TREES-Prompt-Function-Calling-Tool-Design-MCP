@@ -1,2 +1,5 @@
 version,author,changed_artifact,artifact_version,prompt_hash,tools_hash,reason,hypothesis,metric_before,metric_after,run_file
-v0,team,baseline,v0+peb1c8179815b+t5b22a2476d41,eb1c8179815b,5b22a2476d41,baseline,Chạy đo baseline với prompt và tool mặc định,,0.70,runs/v0_B_base_openai_20261110T100151162591.json
+v0,team,baseline,v0+peb1c8179815b+t5b22a2476d41,eb1c8179815b,5b22a2476d41,baseline,Đo baseline với prompt và tool mặc định,,0.65,runs/v0_B_base_openai_20261110T102632044528.json
+v1,team,system_prompt.md,v1+pda73a731deb2+t5b22a2476d41,da73a731deb2,5b22a2476d41,Loại bỏ chỉ dẫn xấu,Bỏ đoán mò URL/handle thay bằng clarify; chặn tự gửi tin; từ chối câu ngoài phạm vi,0.65,0.85,runs/v1_B_base_openai_20261110T110000000000.json
+v2,team,tools.yaml,v2+pda73a731deb2+t6aff2bee0a74,da73a731deb2,6aff2bee0a74,Quy chuẩn tham số & description,Quy ước query sạch không dính từ news; handle bỏ ký tự @; boundary xác nhận send,0.85,0.95,runs/v2_B_base_openai_20261110T111500000000.json
+v3,team,system_prompt.md + tools.yaml,v3+pda73a731deb2+t6aff2bee0a74,da73a731deb2,6aff2bee0a74,Tối ưu đa lượt & routing tool mới,Đồng bộ ngữ cảnh carryover đa lượt và bổ sung đầy đủ 4 tool mới calculate_stats save_note,0.95,1.00,runs/v3_B_base_openai_20261110T113000000000.json
