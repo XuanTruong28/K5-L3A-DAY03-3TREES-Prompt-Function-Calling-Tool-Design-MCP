@@ -217,7 +217,9 @@ def test_policy_instruction_like_lines_go_to_untrusted_text() -> None:
 #   2. bad / missing input from the model (empty string, wrong type, out-of-enum value)
 #   3. failure path (missing key, HTTP error, timeout) -> returns error dict, does not raise
 
-def test_my_new_tool_happy_path() -> None:
+# ---------------- TOOL 1: calculate_stats (3 tests) ----------------
+
+def test_calculate_stats_happy_path() -> None:
     result = TOOL_FUNCTIONS["calculate_stats"](numbers=[10, 20, 30], operation="summary")
     assert result["tool"] == "calculate_stats"
     assert result["count"] == 3
@@ -231,7 +233,7 @@ def test_my_new_tool_happy_path() -> None:
     assert growth["growth_percentage"] == "50.0%"
 
 
-def test_my_new_tool_bad_input_from_model() -> None:
+def test_calculate_stats_bad_input_from_model() -> None:
     # Empty list or None
     res_none = TOOL_FUNCTIONS["calculate_stats"](numbers=None)
     assert res_none["error"] == "ValueError"
@@ -244,39 +246,69 @@ def test_my_new_tool_bad_input_from_model() -> None:
     assert res_growth_bad["error"] == "ValueError"
 
 
-def test_my_new_tool_failure_returns_error_dict() -> None:
+def test_calculate_stats_failure_returns_error_dict() -> None:
     # Non-numeric elements that raise during conversion
     result = TOOL_FUNCTIONS["calculate_stats"](numbers=["not_a_number", "abc"])
     assert "error" in result
     assert result["tool"] == "calculate_stats"
 
 
-def test_save_note_happy_path_and_bad_input(tmp_path, monkeypatch) -> None:
+# ---------------- TOOL 2: save_note (3 tests) ----------------
+
+def test_save_note_happy_path(tmp_path, monkeypatch) -> None:
     from tools.save_note import tool as save_note_module
     monkeypatch.setattr(save_note_module, "NOTES_DIR", tmp_path)
-    # Happy path
     res = TOOL_FUNCTIONS["save_note"](title="Test Note", content="Hello research", tags=["ai", "test"])
     assert res["status"] == "saved"
     assert (tmp_path / res["filename"]).exists()
+    assert res["title"] == "Test Note"
 
-    # Bad input
+
+def test_save_note_bad_input_from_model() -> None:
+    # Both title and content are empty
     bad = TOOL_FUNCTIONS["save_note"](title="", content="")
     assert bad["error"] == "ValueError"
 
 
-def test_text_metrics_calculates_counts_and_reading_time() -> None:
+def test_save_note_failure_path_returns_error_dict(monkeypatch) -> None:
+    from pathlib import Path
+    def _broken_mkdir(*args, **kwargs):
+        raise OSError("Disk permission denied")
+    monkeypatch.setattr(Path, "mkdir", _broken_mkdir)
+    res = TOOL_FUNCTIONS["save_note"](title="Test", content="Data")
+    assert "error" in res
+    assert res["tool"] == "save_note"
+
+
+# ---------------- TOOL 3: text_metrics (3 tests) ----------------
+
+def test_text_metrics_happy_path() -> None:
     res = TOOL_FUNCTIONS["text_metrics"](text="Artificial intelligence is transforming research. AI models are powerful.")
     assert res["tool"] == "text_metrics"
     assert res["word_count"] > 5
     assert res["sentence_count"] == 2
     assert res["reading_time_minutes"] >= 0.01
+    assert len(res["top_words"]) > 0
 
-    # Empty text
+
+def test_text_metrics_bad_input_from_model() -> None:
+    # Empty string input
     empty = TOOL_FUNCTIONS["text_metrics"](text="")
     assert empty["word_count"] == 0
+    assert empty["char_count"] == 0
+    assert empty["reading_time_minutes"] == 0.0
 
 
-def test_cross_check_compares_sources_and_detects_overlap() -> None:
+def test_text_metrics_failure_path_returns_error_dict() -> None:
+    # None or invalid type that might cause unexpected behavior
+    res = TOOL_FUNCTIONS["text_metrics"](text=None)
+    assert res["tool"] == "text_metrics"
+    assert res["word_count"] == 0
+
+
+# ---------------- TOOL 4: cross_check (3 tests) ----------------
+
+def test_cross_check_happy_path() -> None:
     src_a = "Deep learning transformers revolutionized natural language processing and computer vision."
     src_b = "Transformers in natural language processing achieve breakthrough results in deep learning."
     res = TOOL_FUNCTIONS["cross_check"](source_a=src_a, source_b=src_b)
@@ -284,6 +316,19 @@ def test_cross_check_compares_sources_and_detects_overlap() -> None:
     assert res["verdict"] in ("high_alignment", "moderate_alignment")
     assert "transformers" in res["shared_keywords"]
 
-    # Missing input
-    bad = TOOL_FUNCTIONS["cross_check"](source_a="", source_b="only one")
+
+def test_cross_check_bad_input_from_model() -> None:
+    # Missing source_a or source_b
+    bad_a = TOOL_FUNCTIONS["cross_check"](source_a="", source_b="only one")
+    assert bad_a["error"] == "ValueError"
+
+    bad_b = TOOL_FUNCTIONS["cross_check"](source_a="only one", source_b="")
+    assert bad_b["error"] == "ValueError"
+
+
+def test_cross_check_failure_path_returns_error_dict() -> None:
+    # None inputs
+    bad = TOOL_FUNCTIONS["cross_check"](source_a=None, source_b=None)
+    assert bad["error"] == "ValueError"
+    assert bad["tool"] == "cross_check"
     assert bad["error"] == "ValueError"
