@@ -1,1 +1,2 @@
 version,author,changed_artifact,artifact_version,prompt_hash,tools_hash,reason,hypothesis,metric_before,metric_after,run_file
+v0,team,baseline,v0+peb1c8179815b+t5b22a2476d41,eb1c8179815b,5b22a2476d41,baseline,Chạy đo baseline với prompt và tool mặc định,,0.70,runs/v0_B_base_openai_20261110T100151162591.json
