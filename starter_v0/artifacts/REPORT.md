@@ -65,13 +65,13 @@ Use actual failures from `results[*].result.failures`.
 
 | Case ID | Failure Type | Actual Tool Calls | What Failed | Fix |
 |---|---|---|---|---|
-|R03_web_news_routing  |wrong_tool  |  |Nhầm tool khi tìm tin tức AI  |Bổ sung quy tắc routing rõ ràng trong prompt  |
-|R08_out_of_scope  |out_of_scope  |  |Câu ngoài phạm vi nhưng agent vẫn cố gọi tool  |Thêm rule từ chối/không gọi tool với câu ngoài lề  |
-|R10_missing_handle  |missing_info  |  |Thiếu tên tài khoản nhưng agent tự đoán mò  |Xóa câu xúi đoán mò trong prompt, bắt buộc gọi clarify  |
-|R11_missing_url  |missing_info  |  |Bảo tóm tắt nhưng không đưa link, agent tự bịa link  |Bắt buộc gọi clarify khi thiếu URL bài viết  |
-|R12_confirm_before_send  |wrong_boundary  |  |Tự ý gửi tin Telegram khi chưa có xác nhận  |Đặt quy tắc chỉ gọi send khi confirmed=true  |
-|R13_parallel_web_and_tweets  |wrong_tool  |  |Nhầm lẫn giữa tìm web và tìm tweet  |Phân định rõ lookup vs social_search  |
-|R14_out_of_scope_coding  |out_of_scope  |  |Yêu cầu viết code, agent vẫn gọi tool nghiên cứu  |Hướng dẫn agent trả lời trực tiếp khi không cần tool  |
+|R03_web_news_routing  |wrong_tool  |lookup(query="AI news", topic="news", timeframe="day")  |Query bị thừa chữ "news" ("AI news" thay vì "AI"), routing nhầm từ khóa |Thêm quy ước trích xuất từ khóa sạch (không lặp lại từ loại topic vào query)|
+|R08_out_of_scope  |out_of_scope  |	send(text="Nguyên hàm của x^2 là (x^3)/3 + C...")  |Câu hỏi toán học ngoài phạm vi nhưng agent lại tự tiện gọi tool send để gửi đáp án |Thêm rule nghiêm cấm gọi tool với câu ngoài phạm vi (trả lời text thuần hoặc từ chối) |
+|R10_missing_handle  |missing_info  |timeline(screenname="sama")  |Không nói rõ tài khoản của ai nhưng agent tự đoán mò tài khoản của Sam Altman |Xóa câu xúi đoán mò trong prompt, bắt buộc gọi clarify khi thiếu tên người dùng|
+|R11_missing_url  |missing_info  |fetch(url="https://example.com/article")  |Yêu cầu tóm tắt nhưng không đưa link, agent tự bịa ra link example.com|Bắt buộc gọi clarify để hỏi link URL khi người dùng chưa cung cấp |
+|R12_confirm_before_send  |wrong_boundary  |send(text="Bản tin này")  |Tự ý kích hoạt hành động gửi tin Telegram khi người dùng chưa hề xác nhận |Đặt guardrail trong tools.yaml và prompt: chỉ gọi send khi có cờ confirmed=true |
+|R13_parallel_web_and_tweets  |wrong_tool  |lookup(query="AI news", timeframe="day"), social_search(query="AI", search_type="Latest")  |Tool lookup bị thiếu đối số topic="news" khi gọi song song 2 công cụ |Làm rõ trong mô tả của lookup về việc luôn phải gán topic="news" khi tìm tin tức
+|R14_out_of_scope_coding  |out_of_scope  |send(text="def fibonacci(n):...")  |Yêu cầu viết code Python, agent lại gọi tool send thay vì trả lời code trực tiếp |Bổ sung quy tắc: yêu cầu lập trình/code thì không dùng bất kỳ tool nghiên cứu nào|
 
 ## B3. Team Eval Cases
 
@@ -79,11 +79,11 @@ List the 10 cases added to `data/eval_group.json` (5 single turn + 5 multi turn)
 
 | Case ID | What It Tests | Expected Tool/Behavior | Result |
 |---|---|---|---|
-|G01_stats_growth_rate  |Tính tốc độ tăng trưởng doanh thu  |Gọi calculate_stats với operation=growth_rate  |PASS  |
+|G01_stats_growth_rate  |Tính tốc độ tăng trưởng doanh thu  |Gọi calculate_stats với operation=growth_rate  |FAIL wrong_tool  |
 |G02_stats_average  |	Tính điểm trung bình cộng dãy số  |Gọi calculate_stats với operation=average  |PASS  |
 |G03_arxiv_papers_search  |Tìm kiếm bài báo khoa học trên arXiv  |Gọi tool papers  |FAIL wrong_tool  |
 |G04_company_policy_privacy  |Tra cứu quy định nội bộ về bảo mật dữ liệu  |Gọi tool policy (data_privacy)  |FAIL wrong_tool  |
-|G05_out_of_scope_cooking  |Hỏi công thức nấu ăn ngoài phạm vi  |	Từ chối, không gọi tool (no_tool)  |PASS  |
+|G05_out_of_scope_cooking  |Hỏi công thức nấu ăn ngoài phạm vi  |	Từ chối, không gọi tool (no_tool)  |FAIL out_of_scope  |
 |GM01_multiturn_stats_carryover  |Đa lượt: bổ sung thêm số liệu rồi tính trung bình  |Gọi calculate_stats với danh sách số gộp  |PASS  |
 |GM02_multiturn_clarify_then_timeline  |Đa lượt: hỏi thiếu tên người, sau đó bổ sung tên  |Gọi timeline với screenname=sama  |PASS  |
 |GM03_multiturn_switch_topic_news  |Đa lượt: đổi chủ đề tìm kiếm từ chứng khoán sang AI  |Gọi lookup với query=AI, topic=news  |FAIL wrong_tool  |
