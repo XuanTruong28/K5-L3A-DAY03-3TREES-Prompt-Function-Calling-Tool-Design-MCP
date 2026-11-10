@@ -1,7 +1,303 @@
 {
   "dataset_id": "day04_v2_research_group",
   "dataset_role": "group",
-  "description": "Case do NHÓM tự viết thêm để cover thêm trường hợp. Mỗi case cần: id, phase='B', query HOẶC turns, failure_type (thuộc allowed_failure_types), và expect (tool_calls[...] hoặc no_tool=true). Nên kèm metadata.what_it_tests.",
-  "allowed_failure_types": ["wrong_tool", "wrong_arg_value", "wrong_boundary", "unnecessary_tool", "out_of_scope", "missing_info"],
-  "cases": []
+  "description": "Bộ 10 test case do nhóm thiết kế (5 single-turn, 5 multi-turn) đo lường khả năng routing tới tool mới calculate_stats, chuyển đổi ngữ cảnh đa lượt, và từ chối yêu cầu ngoài phạm vi.",
+  "allowed_failure_types": [
+    "wrong_tool",
+    "wrong_arg_value",
+    "wrong_boundary",
+    "unnecessary_tool",
+    "out_of_scope",
+    "missing_info"
+  ],
+  "cases": [
+    {
+      "id": "G01_stats_growth_rate",
+      "phase": "B",
+      "suite": "group",
+      "query": "Doanh thu năm ngoái là 50 tỷ, năm nay là 85 tỷ. Tính giúp mình tốc độ tăng trưởng phần trăm.",
+      "failure_type": "wrong_tool",
+      "expect": {
+        "tool_calls": [
+          {
+            "name": "calculate_stats",
+            "args": {
+              "numbers": [50.0, 85.0],
+              "operation": "growth_rate"
+            }
+          }
+        ]
+      },
+      "metadata": {
+        "skill": "routing_calculate_stats_growth",
+        "difficulty": "easy",
+        "what_it_tests": "Yêu cầu tính tỷ lệ tăng trưởng -> route đến calculate_stats với operation=growth_rate."
+      }
+    },
+    {
+      "id": "G02_stats_average",
+      "phase": "B",
+      "suite": "group",
+      "query": "Tính điểm trung bình của 4 bài kiểm tra: 8.5, 9.0, 7.5, 8.0",
+      "failure_type": "wrong_tool",
+      "expect": {
+        "tool_calls": [
+          {
+            "name": "calculate_stats",
+            "args": {
+              "numbers": [8.5, 9.0, 7.5, 8.0],
+              "operation": "average"
+            }
+          }
+        ]
+      },
+      "metadata": {
+        "skill": "routing_calculate_stats_average",
+        "difficulty": "easy",
+        "what_it_tests": "Tính trung bình cộng -> route đến calculate_stats với operation=average."
+      }
+    },
+    {
+      "id": "G03_arxiv_papers_search",
+      "phase": "B",
+      "suite": "group",
+      "query": "Tìm các bài báo khoa học mới nhất về mô hình ngôn ngữ lớn (LLM reasoning) trên arXiv",
+      "failure_type": "wrong_tool",
+      "expect": {
+        "tool_calls": [
+          {
+            "name": "papers",
+            "args": {
+              "query": "LLM reasoning"
+            }
+          }
+        ]
+      },
+      "metadata": {
+        "skill": "routing_arxiv_papers",
+        "difficulty": "easy",
+        "what_it_tests": "Tìm bài báo khoa học trên arXiv -> route đến papers."
+      }
+    },
+    {
+      "id": "G04_company_policy_privacy",
+      "phase": "B",
+      "suite": "group",
+      "query": "Quy định công ty về việc bảo mật thông tin khách hàng khi dùng AI như thế nào?",
+      "failure_type": "wrong_tool",
+      "expect": {
+        "tool_calls": [
+          {
+            "name": "policy",
+            "args": {
+              "query": "bảo mật thông tin khách hàng",
+              "policy_area": "data_privacy"
+            }
+          }
+        ]
+      },
+      "metadata": {
+        "skill": "routing_company_policy",
+        "difficulty": "medium",
+        "what_it_tests": "Tìm quy định nội bộ công ty -> route đến policy với area=data_privacy."
+      }
+    },
+    {
+      "id": "G05_out_of_scope_cooking",
+      "phase": "B",
+      "suite": "group",
+      "query": "Cho mình công thức nấu món phở bò Hà Nội truyền thống chuẩn vị tại nhà.",
+      "failure_type": "out_of_scope",
+      "expect": {
+        "no_tool": true,
+        "behavior": "refuse"
+      },
+      "metadata": {
+        "skill": "out_of_scope_cooking",
+        "difficulty": "easy",
+        "what_it_tests": "Yêu cầu ẩm thực ngoài phạm vi research -> từ chối không gọi tool."
+      }
+    },
+    {
+      "id": "GM01_multiturn_stats_carryover",
+      "phase": "B",
+      "suite": "group",
+      "turns": [
+        {
+          "role": "user",
+          "content": "Tôi có danh sách điểm benchmark: 75, 82, 90"
+        },
+        {
+          "role": "user",
+          "content": "Thêm điểm 93 nữa nhé"
+        },
+        {
+          "role": "user",
+          "content": "Tính giúp mình giá trị trung bình cộng của các điểm này"
+        }
+      ],
+      "failure_type": "wrong_arg_value",
+      "expect": {
+        "tool_calls": [
+          {
+            "name": "calculate_stats",
+            "args": {
+              "numbers": [75.0, 82.0, 90.0, 93.0],
+              "operation": "average"
+            }
+          }
+        ]
+      },
+      "metadata": {
+        "skill": "multiturn_stats_carryover",
+        "difficulty": "medium",
+        "what_it_tests": "Tổng hợp danh sách numbers qua các lượt và gọi operation=average."
+      }
+    },
+    {
+      "id": "GM02_multiturn_clarify_then_timeline",
+      "phase": "B",
+      "suite": "group",
+      "turns": [
+        {
+          "role": "user",
+          "content": "Lấy giúp mình 5 tweet mới nhất"
+        },
+        {
+          "role": "user",
+          "content": "Của Sam Altman nhé"
+        },
+        {
+          "role": "user",
+          "content": "Lấy đúng 5 tweet thôi"
+        }
+      ],
+      "failure_type": "missing_info",
+      "expect": {
+        "tool_calls": [
+          {
+            "name": "timeline",
+            "args": {
+              "screenname": "sama",
+              "limit": 5
+            }
+          }
+        ]
+      },
+      "metadata": {
+        "skill": "multiturn_clarify_handle",
+        "difficulty": "medium",
+        "what_it_tests": "Lượt đầu thiếu handle, lượt 2 cung cấp tên -> map sang sama, limit=5."
+      }
+    },
+    {
+      "id": "GM03_multiturn_switch_topic_news",
+      "phase": "B",
+      "suite": "group",
+      "turns": [
+        {
+          "role": "user",
+          "content": "Tin tức thời sự hôm nay có gì về thị trường chứng khoán?"
+        },
+        {
+          "role": "user",
+          "content": "Không, đổi sang tìm tin tức về trí tuệ nhân tạo (AI)"
+        },
+        {
+          "role": "user",
+          "content": "Vẫn lấy tin tức trong ngày hôm nay nhé"
+        }
+      ],
+      "failure_type": "wrong_tool",
+      "expect": {
+        "tool_calls": [
+          {
+            "name": "lookup",
+            "args": {
+              "query": "AI",
+              "topic": "news",
+              "timeframe": "day"
+            }
+          }
+        ]
+      },
+      "metadata": {
+        "skill": "multiturn_switch_topic",
+        "difficulty": "hard",
+        "what_it_tests": "Đổi chủ đề từ chứng khoán sang AI, carryover topic=news và timeframe=day."
+      }
+    },
+    {
+      "id": "GM04_multiturn_paper_to_paper_text",
+      "phase": "B",
+      "suite": "group",
+      "turns": [
+        {
+          "role": "user",
+          "content": "Tìm paper về kiến trúc transformer trên arXiv"
+        },
+        {
+          "role": "user",
+          "content": "Đọc nội dung chi tiết bài báo có id 1706.03762"
+        },
+        {
+          "role": "user",
+          "content": "Chỉ đọc tối đa 3 trang thôi"
+        }
+      ],
+      "failure_type": "wrong_tool",
+      "expect": {
+        "tool_calls": [
+          {
+            "name": "paper_text",
+            "args": {
+              "arxiv_url": "1706.03762",
+              "max_pages": 3
+            }
+          }
+        ]
+      },
+      "metadata": {
+        "skill": "multiturn_paper_text",
+        "difficulty": "medium",
+        "what_it_tests": "Lượt sau yêu cầu đọc cụ thể paper -> route đến paper_text với max_pages=3."
+      }
+    },
+    {
+      "id": "GM05_multiturn_confirm_telegram_send",
+      "phase": "B",
+      "suite": "group",
+      "turns": [
+        {
+          "role": "user",
+          "content": "Đăng bản tin tổng hợp AI này lên Telegram giúp mình"
+        },
+        {
+          "role": "user",
+          "content": "Đúng rồi, mình đồng ý gửi bản tin đó lên kênh"
+        },
+        {
+          "role": "user",
+          "content": "Gửi ngay nội dung: Bản tin AI tuần này đã sẵn sàng"
+        }
+      ],
+      "failure_type": "wrong_boundary",
+      "expect": {
+        "tool_calls": [
+          {
+            "name": "send",
+            "args": {
+              "text": "Bản tin AI tuần này đã sẵn sàng",
+              "confirmed": true
+            }
+          }
+        ]
+      },
+      "metadata": {
+        "skill": "multiturn_confirm_send",
+        "difficulty": "hard",
+        "what_it_tests": "User đã xác nhận ở lượt trước -> lượt sau cho phép gọi send với confirmed=true."
+      }
+    }
+  ]
 }

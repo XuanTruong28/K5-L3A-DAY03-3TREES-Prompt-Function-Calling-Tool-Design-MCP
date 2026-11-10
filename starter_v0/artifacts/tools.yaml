@@ -16,55 +16,55 @@
 tools:
   # ---------------- Core tools ----------------
   - name: clarify
-    description: "Gửi một câu hỏi cho người dùng."
+    description: "Hỏi lại người dùng khi thiếu thông tin cần thiết (như thiếu tên tài khoản mạng xã hội, thiếu link URL bài viết), hoặc hỏi xin xác nhận trước khi gửi tin nhắn."
     parameters:
       type: object
       properties:
-        question: {type: string, default: "", description: "Câu hỏi"}
+        question: {type: string, default: "", description: "Câu hỏi cần hỏi người dùng"}
         response_type: {type: string, enum: [text, yes_no, choice], default: "text", description: "yes_no: hỏi xác nhận có/không, ví dụ 'Bạn có muốn đăng bản tin này lên Telegram không?'. text: hỏi thông tin tự do. choice: chọn một trong options."}
-        options: {type: array, default: [], items: {type: string}, description: "Các lựa chọn"}
+        options: {type: array, default: [], items: {type: string}, description: "Các lựa chọn nếu response_type là choice"}
       required: [question, response_type]
 
   - name: timeline
-    description: "Lấy các bài đăng gần đây."
+    description: "Lấy các bài đăng gần đây của một người dùng Twitter/X cụ thể. Dùng khi câu hỏi hỏi về bài đăng CỦA một người (Sam Altman, Elon Musk...)."
     parameters:
       type: object
       properties:
-        screenname: {type: string, default: "", description: "Tên tài khoản"}
-        limit: {type: integer, default: 5, description: "Số lượng"}
+        screenname: {type: string, default: "", description: "Handle tài khoản Twitter/X (bỏ ký tự @, ví dụ: sama, elonmusk)"}
+        limit: {type: integer, default: 5, description: "Số lượng bài đăng cần lấy"}
       required: [screenname]
 
   - name: social_search
-    description: "Tìm trên mạng xã hội."
+    description: "Tìm kiếm bài đăng/tweet trên mạng xã hội Twitter/X theo từ khóa hoặc chủ đề thảo luận chung (không phải trang cá nhân của một người)."
     parameters:
       type: object
       properties:
-        query: {type: string, default: "", description: "Từ khóa"}
-        search_type: {type: string, enum: [Latest, Top], default: "Latest", description: "Cách sắp xếp"}
-        limit: {type: integer, default: 5, description: "Số lượng"}
+        query: {type: string, default: "", description: "Từ khóa tìm kiếm trên mạng xã hội"}
+        search_type: {type: string, enum: [Latest, Top], default: "Latest", description: "Cách sắp xếp bài viết: Latest (mới nhất), Top (nổi bật nhất)"}
+        limit: {type: integer, default: 5, description: "Số lượng bài đăng"}
       required: [query]
 
   - name: lookup
-    description: "Tra cứu thông tin trên internet."
+    description: "Tra cứu thông tin hoặc tin tức trên internet qua công cụ tìm kiếm web. Tham số query chỉ chứa từ khóa chủ đề (không chèn từ 'news' hay 'tin tức' vào query). Dùng topic='news' khi tìm tin tức."
     parameters:
       type: object
       properties:
-        query: {type: string, default: "", description: "Truy vấn"}
-        topic: {type: string, enum: [general, news], default: "general", description: "Phân loại"}
-        timeframe: {type: string, enum: [day, week, month, year], default: "week", description: "Khoảng thời gian"}
-        max_results: {type: integer, default: 5, description: "Số kết quả"}
+        query: {type: string, default: "", description: "Từ khóa tìm kiếm chủ đề (ví dụ: 'AI', 'bán dẫn'). Không chèn từ 'news' hay mốc thời gian vào đây"}
+        topic: {type: string, enum: [general, news], default: "general", description: "Phân loại: 'news' cho tin tức thời sự/báo chí, 'general' cho tra cứu kiến thức chung"}
+        timeframe: {type: string, enum: [day, week, month, year], default: "week", description: "Khoảng thời gian: 'day' cho hôm nay/24h, 'week' cho tuần này, 'month' cho tháng này"}
+        max_results: {type: integer, default: 5, description: "Số kết quả tối đa"}
       required: [query]
 
   - name: fetch
-    description: "Lấy nội dung từ một địa chỉ."
+    description: "Lấy và đọc toàn bộ nội dung văn bản markdown từ một địa chỉ URL cụ thể do người dùng cung cấp."
     parameters:
       type: object
       properties:
-        url: {type: string, default: "", description: "Địa chỉ"}
+        url: {type: string, default: "", description: "Địa chỉ đường link URL đầy đủ cần đọc"}
       required: [url]
 
   - name: format
-    description: "Trình bày dữ liệu đã có thành văn bản."
+    description: "Trình bày các item dữ liệu đã thu thập được thành văn bản markdown digest theo mẫu."
     parameters:
       type: object
       properties:
@@ -80,18 +80,18 @@ tools:
               source: {type: string}
               summary: {type: string}
               section: {type: string}
-        template: {type: string, enum: [brief, sections, bullets, thread, daily_ai_vn], default: "sections", description: "Khuôn"}
-        headline: {type: string, default: "", description: "Tiêu đề"}
+        template: {type: string, enum: [brief, sections, bullets, thread, daily_ai_vn], default: "sections", description: "Khuôn định dạng"}
+        headline: {type: string, default: "", description: "Tiêu đề bản tin"}
       required: [items, template]
 
   # ---------------- Bonus tools ----------------
   - name: send
-    description: "Gửi một đoạn văn bản đi."
+    description: "Gửi bản tin lên kênh Telegram. CHỈ ĐƯỢC DÙNG khi người dùng đã xác nhận rõ ràng (confirmed=true). Tuyệt đối không dùng khi chưa có xác nhận từ người dùng."
     parameters:
       type: object
       properties:
-        text: {type: string, default: "", description: "Nội dung"}
-        confirmed: {type: boolean, default: false, description: "Cờ xác nhận"}
+        text: {type: string, default: "", description: "Nội dung văn bản cần gửi"}
+        confirmed: {type: boolean, default: false, description: "Cờ xác nhận từ người dùng (bắt buộc true mới được gửi)"}
       required: [text]
 
   - name: policy
@@ -123,3 +123,65 @@ tools:
         max_pages: {type: integer, default: 5, description: "Số trang"}
         max_chars: {type: integer, default: 8000, description: "Số ký tự"}
       required: [arxiv_url]
+
+  - name: calculate_stats
+    description: "Tính toán các chỉ số thống kê (tổng, trung bình, min, max, tỷ lệ phần trăm tăng trưởng) từ danh sách các con số nghiên cứu."
+    parameters:
+      type: object
+      properties:
+        numbers:
+          type: array
+          items: {type: number}
+          description: "Danh sách các số cần tính toán"
+        operation:
+          type: string
+          enum: [summary, average, sum, growth_rate]
+          default: "summary"
+          description: "Phép tính cần thực hiện: summary (tổng hợp), average (trung bình), sum (tổng), growth_rate (tỷ lệ tăng trưởng %)"
+      required: [numbers]
+
+  - name: save_note
+    description: "Lưu kết quả nghiên cứu, trích dẫn hoặc tổng hợp vào file ghi chú Markdown cục bộ trong thư mục artifacts/notes/."
+    parameters:
+      type: object
+      properties:
+        title:
+          type: string
+          default: ""
+          description: "Tiêu đề của ghi chú"
+        content:
+          type: string
+          default: ""
+          description: "Nội dung ghi chú Markdown cần lưu"
+        tags:
+          type: array
+          items: {type: string}
+          default: []
+          description: "Danh sách nhãn phân loại (tags)"
+      required: [content]
+
+  - name: text_metrics
+    description: "Phân tích số liệu văn bản: đếm số từ, số ký tự, số câu, thời gian đọc ước tính và trích xuất top từ khóa."
+    parameters:
+      type: object
+      properties:
+        text:
+          type: string
+          default: ""
+          description: "Đoạn văn bản cần phân tích"
+      required: [text]
+
+  - name: cross_check
+    description: "Đối chiếu, so sánh hai đoạn văn bản hoặc hai nguồn thông tin nghiên cứu để tìm điểm tương đồng hoặc từ khóa chung."
+    parameters:
+      type: object
+      properties:
+        source_a:
+          type: string
+          default: ""
+          description: "Nội dung nguồn thứ nhất"
+        source_b:
+          type: string
+          default: ""
+          description: "Nội dung nguồn thứ hai"
+      required: [source_a, source_b]
