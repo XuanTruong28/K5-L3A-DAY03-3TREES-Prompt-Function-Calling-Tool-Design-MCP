@@ -21,9 +21,9 @@ tools:
       type: object
       properties:
         question: {type: string, default: "", description: "Câu hỏi"}
-        response_type: {type: string, enum: [text, yes_no, choice], default: "text", description: "Kiểu trả lời"}
+        response_type: {type: string, enum: [text, yes_no, choice], default: "text", description: "yes_no: hỏi xác nhận có/không, ví dụ 'Bạn có muốn đăng bản tin này lên Telegram không?'. text: hỏi thông tin tự do. choice: chọn một trong options."}
         options: {type: array, default: [], items: {type: string}, description: "Các lựa chọn"}
-      required: [question]
+      required: [question, response_type]
 
   - name: timeline
     description: "Lấy các bài đăng gần đây."
