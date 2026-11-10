@@ -249,3 +249,41 @@ def test_my_new_tool_failure_returns_error_dict() -> None:
     result = TOOL_FUNCTIONS["calculate_stats"](numbers=["not_a_number", "abc"])
     assert "error" in result
     assert result["tool"] == "calculate_stats"
+
+
+def test_save_note_happy_path_and_bad_input(tmp_path, monkeypatch) -> None:
+    from tools.save_note import tool as save_note_module
+    monkeypatch.setattr(save_note_module, "NOTES_DIR", tmp_path)
+    # Happy path
+    res = TOOL_FUNCTIONS["save_note"](title="Test Note", content="Hello research", tags=["ai", "test"])
+    assert res["status"] == "saved"
+    assert (tmp_path / res["filename"]).exists()
+
+    # Bad input
+    bad = TOOL_FUNCTIONS["save_note"](title="", content="")
+    assert bad["error"] == "ValueError"
+
+
+def test_text_metrics_calculates_counts_and_reading_time() -> None:
+    res = TOOL_FUNCTIONS["text_metrics"](text="Artificial intelligence is transforming research. AI models are powerful.")
+    assert res["tool"] == "text_metrics"
+    assert res["word_count"] > 5
+    assert res["sentence_count"] == 2
+    assert res["reading_time_minutes"] >= 0.01
+
+    # Empty text
+    empty = TOOL_FUNCTIONS["text_metrics"](text="")
+    assert empty["word_count"] == 0
+
+
+def test_cross_check_compares_sources_and_detects_overlap() -> None:
+    src_a = "Deep learning transformers revolutionized natural language processing and computer vision."
+    src_b = "Transformers in natural language processing achieve breakthrough results in deep learning."
+    res = TOOL_FUNCTIONS["cross_check"](source_a=src_a, source_b=src_b)
+    assert res["tool"] == "cross_check"
+    assert res["verdict"] in ("high_alignment", "moderate_alignment")
+    assert "transformers" in res["shared_keywords"]
+
+    # Missing input
+    bad = TOOL_FUNCTIONS["cross_check"](source_a="", source_b="only one")
+    assert bad["error"] == "ValueError"

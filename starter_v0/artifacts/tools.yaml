@@ -139,3 +139,49 @@ tools:
           default: "summary"
           description: "Phép tính cần thực hiện: summary (tổng hợp), average (trung bình), sum (tổng), growth_rate (tỷ lệ tăng trưởng %)"
       required: [numbers]
+
+  - name: save_note
+    description: "Lưu kết quả nghiên cứu, trích dẫn hoặc tổng hợp vào file ghi chú Markdown cục bộ trong thư mục artifacts/notes/."
+    parameters:
+      type: object
+      properties:
+        title:
+          type: string
+          default: ""
+          description: "Tiêu đề của ghi chú"
+        content:
+          type: string
+          default: ""
+          description: "Nội dung ghi chú Markdown cần lưu"
+        tags:
+          type: array
+          items: {type: string}
+          default: []
+          description: "Danh sách nhãn phân loại (tags)"
+      required: [content]
+
+  - name: text_metrics
+    description: "Phân tích số liệu văn bản: đếm số từ, số ký tự, số câu, thời gian đọc ước tính và trích xuất top từ khóa."
+    parameters:
+      type: object
+      properties:
+        text:
+          type: string
+          default: ""
+          description: "Đoạn văn bản cần phân tích"
+      required: [text]
+
+  - name: cross_check
+    description: "Đối chiếu, so sánh hai đoạn văn bản hoặc hai nguồn thông tin nghiên cứu để tìm điểm tương đồng hoặc từ khóa chung."
+    parameters:
+      type: object
+      properties:
+        source_a:
+          type: string
+          default: ""
+          description: "Nội dung nguồn thứ nhất"
+        source_b:
+          type: string
+          default: ""
+          description: "Nội dung nguồn thứ hai"
+      required: [source_a, source_b]
